@@ -108,7 +108,7 @@ class Log:
                     server_pkg_id,
                 ))
     
-    async def write(self, loop, *args):
+    def write(self, *args):
         self.thread_pool.submit(self.blocking_write, *args)
     
     def shutdown(self, wait=None):
@@ -177,8 +177,7 @@ async def server(loop, host, port):
     await server.wait_closed()
 
 async def client(loop, log, host, port, interval):
-    await log.write(
-        loop,
+    log.write(
         False,
         datetime.datetime.now(),
         'client_start',
@@ -195,11 +194,10 @@ async def client(loop, log, host, port, interval):
     con_counter = itertools.count(1)
     con_id = None
     
-    async def close():
+    def close():
         nonlocal con_id, write_future, writer
         
-        await log.write(
-            loop,
+        log.write(
             False,
             datetime.datetime.now(),
             'close',
@@ -233,8 +231,7 @@ async def client(loop, log, host, port, interval):
                 
                 await target_writer.drain()
             except OSError as e:
-                await log.write(
-                    loop,
+                log.write(
                     True,
                     datetime.datetime.now(),
                     'write_error',
@@ -246,7 +243,7 @@ async def client(loop, log, host, port, interval):
                     None,
                 )
                 
-                await close()
+                close()
                 
                 return
             
@@ -255,8 +252,7 @@ async def client(loop, log, host, port, interval):
     try:
         while True:
             if writer is None:
-                await log.write(
-                    loop,
+                log.write(
                     False,
                     datetime.datetime.now(),
                     'connecting',
@@ -276,8 +272,7 @@ async def client(loop, log, host, port, interval):
                         limit=STREAM_READER_LIMIT,
                     )
                 except OSError as e:
-                    await log.write(
-                        loop,
+                    log.write(
                         True,
                         datetime.datetime.now(),
                         'connect_error',
@@ -307,8 +302,7 @@ async def client(loop, log, host, port, interval):
                     loop=loop,
                 )
                 
-                await log.write(
-                    loop,
+                log.write(
                     False,
                     datetime.datetime.now(),
                     'connected',
@@ -323,8 +317,7 @@ async def client(loop, log, host, port, interval):
             try:
                 in_data = await reader.readexactly(24)
             except (EOFError, OSError) as e:
-                await log.write(
-                    loop,
+                log.write(
                     True,
                     datetime.datetime.now(),
                     'read_error',
@@ -336,7 +329,7 @@ async def client(loop, log, host, port, interval):
                     None,
                 )
                 
-                await close()
+                close()
                 
                 await asyncio.sleep(interval, loop=loop)
                 
@@ -355,8 +348,7 @@ async def client(loop, log, host, port, interval):
             else:
                 lag_delta = date_now_dt - date_dt
             
-            await log.write(
-                loop,
+            log.write(
                 False,
                 datetime.datetime.now(),
                 'received_pkg',
@@ -368,8 +360,7 @@ async def client(loop, log, host, port, interval):
                 server_pkg_id,
             )
     finally:
-        await log.write(
-            loop,
+        log.write(
             False,
             datetime.datetime.now(),
             'client_shutdown',
@@ -381,7 +372,7 @@ async def client(loop, log, host, port, interval):
             None,
         )
         
-        await close()
+        close()
 
 def main():
     parser = argparse.ArgumentParser()
