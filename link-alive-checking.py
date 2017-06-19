@@ -118,24 +118,27 @@ class Log:
         self.thread_pool.shutdown(wait)
 
 async def process_server_client(loop, client_id, client_reader, client_writer):
-    pkg_counter = itertools.count(1)
-    
-    while True:
-        try:
-            in_data = await client_reader.readexactly(8)
-        except (EOFError, OSError):
-            return
+    try:
+        pkg_counter = itertools.count(1)
         
-        pkg_id = next(pkg_counter)
-        date_nanos, = struct.unpack('!Q', in_data)
-        out_data = struct.pack('!QQQ', client_id, pkg_id, date_nanos)
-        
-        try:
-            client_writer.write(out_data)
+        while True:
+            try:
+                in_data = await client_reader.readexactly(8)
+            except (EOFError, OSError):
+                break
             
-            await client_writer.drain()
-        except OSError:
-            return
+            pkg_id = next(pkg_counter)
+            date_nanos, = struct.unpack('!Q', in_data)
+            out_data = struct.pack('!QQQ', client_id, pkg_id, date_nanos)
+            
+            try:
+                client_writer.write(out_data)
+                
+                await client_writer.drain()
+            except OSError:
+                break
+    finally:
+        client_writer.close()
 
 async def server(loop, host, port):
     client_prefix = random.randrange(10 ** 5) * 10 ** 10
@@ -172,9 +175,8 @@ async def server(loop, host, port):
         await server.wait_closed()
     except asyncio.CancelledError:
         pass
-    
-    server.close()
-    await server.wait_closed()
+    finally:
+        server.close()
 
 async def client(loop, log, host, port, interval):
     log.write(
